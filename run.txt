@@ -1,0 +1,7 @@
+
+lsof -ti:3000 | xargs kill -9 2>/dev/null; echo "Port 3000 cleared"
+npm start
+
+http://localhost:3000/v5.html
+
+http://localhost:3000/v7.html

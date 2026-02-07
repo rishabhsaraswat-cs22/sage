@@ -1,0 +1,28 @@
+{
+  "name": "voice-pipeline-experiment",
+  "version": "1.0.0",
+  "description": "Minimal voice pipeline experiment using Google Cloud services with ADC",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [
+    "voice",
+    "speech-to-text",
+    "text-to-speech",
+    "gemini",
+    "gcp"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@google-cloud/speech": "^6.7.0",
+    "@google-cloud/storage": "^7.18.0",
+    "@google-cloud/text-to-speech": "^5.4.0",
+    "@google-cloud/vertexai": "^1.9.0",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "multer": "^1.4.5-lts.1",
+    "ws": "^8.18.3"
+  }
+}
