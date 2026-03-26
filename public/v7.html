@@ -5,6 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>V7 - Immersive GD</title>
+    <!-- pdf export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
         * {
             box-sizing: border-box;
@@ -2198,8 +2200,31 @@
         }
 
         function downloadPDF() {
-            // Simple alert for now - proper PDF generation would require a library
-            alert('PDF download feature coming soon! For now, you can use your browser\'s Print function (Ctrl+P / Cmd+P) to save as PDF.');
+            const element = document.getElementById('analyticsContent');
+            if (!element) return;
+            
+            const btn = document.querySelector('.analytics-btn-secondary');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '⏳ Generating PDF...';
+            btn.disabled = true;
+
+            const opt = {
+                margin:       10,
+                filename:     'gd-analysis-report.pdf',
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true, backgroundColor: '#0a0a14' },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            html2pdf().set(opt).from(element).save().then(() => {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }).catch(err => {
+                console.error('PDF generation error:', err);
+                alert('Error generating PDF. Please try again.');
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            });
         }
     </script>
 </body>
