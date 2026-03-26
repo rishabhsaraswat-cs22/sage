@@ -518,8 +518,15 @@ Provide your analysis in the following JSON format. Be specific, supportive, and
   "keyThemes": ["Theme 1", "Theme 2", "Theme 3", "Theme 4", "Theme 5"],
   
   "userContributions": [
-    {"turn": 1, "summary": "2-3 line summary of what the user said and its purpose"},
-    ...
+    {
+      "turn": 1, 
+      "previousSpeakerPoint": "A concise summary of the point made by the speaker immediately before the user",
+      "whatYouSaid": "A concise summary of what the user actually said",
+      "topicRelevanceScore": "Number 0-100 indicating how relevant what the user said is to the GD topic",
+      "isContextValid": "Boolean. true if topicRelevanceScore is >= 50, false otherwise",
+      "suggestedCounterPoint": "A strong counter argument the user could have made against the previous speaker",
+      "suggestedSupportingPoint": "A supporting detail or fact the user could have added to build upon the previous speaker's point"
+    }
   ],
   
   "feedback": {

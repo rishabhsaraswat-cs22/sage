@@ -896,6 +896,7 @@
     <div class="gd-timer" id="gdTimer">
         <span class="gd-timer-icon">⏱️</span>
         <span class="gd-timer-value" id="gdTimerValue">00:00</span>
+        <button id="endGdBtn" class="end-gd-btn" style="margin-left: 10px; background: rgba(245, 87, 108, 0.8); color: white; border: none; padding: 4px 12px; border-radius: 12px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.3s ease;">End GD</button>
     </div>
 
     <!-- Start Overlay -->
@@ -989,7 +990,7 @@
     </div>
 
     <!-- Cooldown Indicator -->
-    <div class="cooldown-indicator" id="cooldownIndicator">
+    <div class="cooldown-indicator" id="cooldownIndicator" style="display: none !important;">
         ⏳ Next turn in <span class="cooldown-time" id="cooldownTime">45</span>s
     </div>
 
@@ -1612,45 +1613,61 @@
             return int16;
         }
 
-        // ========== TURN PROCESSING ==========
+        async function processEndOfSession(isManual = false) {
+            if (!isSessionActive) return;
+            isSessionActive = false;
+
+            updateStatus(isManual ? 'Discussion ended manually' : 'Discussion ended');
+
+            if (currentAudio) {
+                currentAudio.pause();
+                currentAudio = null;
+            }
+            if (isRecording) {
+                await stopUserRecording();
+                recordingIndicator.classList.remove('active');
+            }
+            if (userWindowOpen) {
+                closeUserSpeakingWindow(true); // Prevent next turn
+            }
+
+            // Freeze the GD timer
+            if (gdTimerInterval) {
+                clearInterval(gdTimerInterval);
+                gdTimerInterval = null;
+            }
+
+            // Log session summary
+            const elapsed = gdStartTime ? Math.floor((Date.now() - gdStartTime) / 1000) : 0;
+            const mins = Math.floor(elapsed / 60);
+            const secs = elapsed % 60;
+            const durationStr = `${mins}m ${secs}s`;
+
+            const userTurns = orchestratorState.turnCount.User;
+            const aiTurns = Object.entries(orchestratorState.turnCount)
+                .filter(([k]) => k !== 'User')
+                .reduce((sum, [, v]) => sum + v, 0);
+
+            fetch('/v4/end-session', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    totalDuration: durationStr,
+                    totalTurns: globalTurnNumber,
+                    userTurns: userTurns,
+                    participants: `1 Human + 4 AI (Total turns: AI=${aiTurns}, User=${userTurns})`
+                })
+            });
+
+            // Trigger Post-GD Analytics
+            triggerAnalytics(durationStr);
+        }
+
         function processNextTurn() {
             const nextSpeaker = getNextSpeaker();
 
             if (!nextSpeaker) {
-                updateStatus('Discussion ended');
-                isSessionActive = false;
-
-                // Freeze the GD timer
-                if (gdTimerInterval) {
-                    clearInterval(gdTimerInterval);
-                    gdTimerInterval = null;
-                }
-
-                // Log session summary
-                const elapsed = gdStartTime ? Math.floor((Date.now() - gdStartTime) / 1000) : 0;
-                const mins = Math.floor(elapsed / 60);
-                const secs = elapsed % 60;
-                const durationStr = `${mins}m ${secs}s`;
-
-                const userTurns = orchestratorState.turnCount.User;
-                const aiTurns = Object.entries(orchestratorState.turnCount)
-                    .filter(([k]) => k !== 'User')
-                    .reduce((sum, [, v]) => sum + v, 0);
-
-                fetch('/v4/end-session', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        totalDuration: durationStr,
-                        totalTurns: globalTurnNumber,
-                        userTurns: userTurns,
-                        participants: `1 Human + 4 AI (Total turns: AI=${aiTurns}, User=${userTurns})`
-                    })
-                });
-
-                // Trigger Post-GD Analytics
-                triggerAnalytics(durationStr);
-
+                processEndOfSession(false);
                 return;
             }
 
@@ -1824,6 +1841,12 @@
 
             gdTimerInterval = setInterval(() => {
                 const elapsed = Math.floor((Date.now() - gdStartTime) / 1000);
+                
+                if (elapsed >= 600) {
+                    processEndOfSession(false);
+                    return;
+                }
+
                 const mins = Math.floor(elapsed / 60).toString().padStart(2, '0');
                 const secs = (elapsed % 60).toString().padStart(2, '0');
                 gdTimerValue.textContent = `${mins}:${secs}`;
@@ -1930,6 +1953,15 @@
                         updateStatus('No speech detected');
                         setTimeout(() => processNextTurn(), 1000);
                     }
+                }
+            }
+        });
+
+        // End GD Button event listener
+        document.getElementById('endGdBtn').addEventListener('click', () => {
+            if (isSessionActive) {
+                if (confirm('Are you sure you want to end the GD early?')) {
+                    processEndOfSession(true);
                 }
             }
         });
@@ -2046,9 +2078,19 @@
                     <div class="analytics-section-content">
                         ${(analysis.userContributions && analysis.userContributions.length > 0) ?
                     analysis.userContributions.map(contrib => `
-                                <div class="contribution-item">
-                                    <div class="contribution-turn">Turn ${contrib.turn}</div>
-                                    <div class="contribution-text">${contrib.summary}</div>
+                                <div class="contribution-item" style="margin-bottom: 20px; padding: 15px; background: rgba(108, 92, 231, 0.1); border-radius: 8px;">
+                                    <div class="contribution-turn" style="font-weight: bold; color: #a29bfe; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
+                                        <span>Turn ${contrib.turn}</span>
+                                        ${contrib.isContextValid !== undefined ? (contrib.isContextValid ? 
+                                            '<span style="background: rgba(0, 184, 148, 0.2); color: #00b894; padding: 2px 8px; border-radius: 12px; font-size: 0.8em; border: 1px solid rgba(0, 184, 148, 0.5);">✅ Valid Context</span>' : 
+                                            '<span style="background: rgba(255, 118, 117, 0.2); color: #ff7675; padding: 2px 8px; border-radius: 12px; font-size: 0.8em; border: 1px solid rgba(255, 118, 117, 0.5);">❌ Off-Topic</span>'
+                                        ) : ''}
+                                    </div>
+                                    <div style="margin-bottom: 8px; font-size: 0.95em; color: #dfe6e9;"><strong>Previous Speaker Said:</strong> ${contrib.previousSpeakerPoint || 'N/A'}</div>
+                                    <div class="contribution-text" style="margin-bottom: 12px;"><strong>You Said:</strong><br/>${contrib.whatYouSaid || contrib.sentence || contrib.summary || 'N/A'}</div>
+                                    <div style="margin-bottom: 8px; font-size: 0.9em; color: rgba(255,255,255,0.7); text-transform: uppercase; letter-spacing: 1px;">What you could have said instead/additionally:</div>
+                                    <div class="contribution-counter" style="margin-bottom: 8px; color: #ffb8b8;"><strong>🔴 Counter Point:</strong> ${contrib.suggestedCounterPoint || contrib.counterPoint || 'N/A'}</div>
+                                    <div class="contribution-support" style="color: #b8e994;"><strong>🟢 Supporting Point:</strong> ${contrib.suggestedSupportingPoint || contrib.supportingPoint || 'N/A'}</div>
                                 </div>
                             `).join('') :
                     '<p style="color: #a29bfe;">No speaking contributions recorded. Consider speaking more in future discussions!</p>'
